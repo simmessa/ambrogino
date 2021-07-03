@@ -1,3 +1,5 @@
+#include <Arduino.h> //necessary for platformio
+
 void setup() {
 
   pinMode(16, OUTPUT); //D0
