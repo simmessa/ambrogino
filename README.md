@@ -19,3 +19,16 @@ This is how I wired mine, your wiring might be different but take this as a guid
 ## Build and flash
 
 This project is provided with platformio project files, you can find out more at: https://platformio.org/
+
+You should be putting your settings in the src/settings.CHANGEME file:
+
+```
+// Update these with values suitable for your network.
+
+const char ssid[] = "YOUR_SSID"; // your network SSID (name)
+const char pass[] = "YOUR_WIFI_PASSWORD";  // your network password
+
+const char mqtt_server[] = "YOUR_MQTT_SERVER_IP";
+```
+
+After editing save it as src/settings.h
