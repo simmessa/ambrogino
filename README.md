@@ -32,3 +32,5 @@ const char mqtt_server[] = "YOUR_MQTT_SERVER_IP";
 ```
 
 After editing save it as src/settings.h
+
+This code is based on some concepts and actual code found at: https://thenewstack.io/off-the-shelf-hacker-adding-mqtt-and-cron-to-the-lawn-sprinkler-project/
