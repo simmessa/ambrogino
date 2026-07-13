@@ -34,3 +34,12 @@ const char mqtt_server[] = "YOUR_MQTT_SERVER_IP";
 After editing save it as src/settings.h
 
 This code is based on some concepts and actual code found at: https://thenewstack.io/off-the-shelf-hacker-adding-mqtt-and-cron-to-the-lawn-sprinkler-project/
+
+## Ota flashing
+
+Pretty straightforward, flash by using the ota environment, but kbe aware you might need to change the IP address based on your DHCP assignment...
+
+## Telnet streaming monitoring
+
+You can check ambrogino status via a simple netcat:
+`nc 192.168.1.181 8266`

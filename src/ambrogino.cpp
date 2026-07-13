@@ -7,8 +7,28 @@
 #include <ESP8266WiFi.h>  //Wifi that won't cause issues with esp8266
 #include <PubSubClient.h> //Publisher subscriber + mqtt client
 #include <ESPDateTime.h>  //For date
+#include <ArduinoOTA.h>   //OTA updates
 
 #include <settings.h>
+
+// Raw TCP log server on port 8266
+WiFiServer logServer(8266);
+WiFiClient logClient;
+
+// Dual-output logger: writes to both hardware Serial and TCP log client
+class DualStream : public Print {
+public:
+  size_t write(uint8_t c) override {
+    Serial.write(c);
+    if (logClient && logClient.connected()) logClient.write(c);
+    return 1;
+  }
+  size_t write(const uint8_t *buf, size_t size) override {
+    Serial.write(buf, size);
+    if (logClient && logClient.connected()) logClient.write(buf, size);
+    return size;
+  }
+} Log;
 
 int status = WL_IDLE_STATUS;
 
@@ -24,22 +44,50 @@ long lastMsg = 0;
 char msg[50];
 int value = 0;
 
+void setup_ota() {
+  ArduinoOTA.setHostname(ota_hostname);
+  ArduinoOTA.setPassword(ota_password);
+
+  ArduinoOTA.onStart([]() {
+    Log.println("OTA Start");
+  });
+  ArduinoOTA.onEnd([]() {
+    Log.println("\nOTA End");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Log.printf("OTA Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Log.printf("OTA Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR)         Log.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR)   Log.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Log.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Log.println("Receive Failed");
+    else if (error == OTA_END_ERROR)     Log.println("End Failed");
+  });
+
+  ArduinoOTA.begin();
+  Log.println("OTA Ready");
+  Log.print("OTA IP: ");
+  Log.println(WiFi.localIP());
+}
+
 void setup_mqtt() {
   client.setClient(espClient);
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
-  Serial.println("MQTT server: ");
-  Serial.println(mqtt_server);
+  Log.println("MQTT server: ");
+  Log.println(mqtt_server);
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
+  Log.print("Message arrived [");
+  Log.print(topic);
+  Log.print("] ");
   for (int i = 0; i < length; i++) {
-    Serial.print((char)payload[i]);
+    Log.print((char)payload[i]);
   }
-  Serial.println();
+  Log.println();
  
   // Switch on the LED if an 1 was received as first character
   if ((char)payload[0] == '1') {
@@ -78,55 +126,54 @@ void setupDateTime() {
   DateTime.setServer("europe.pool.ntp.org");
   DateTime.begin(/* timeout param */);
   if (!DateTime.isTimeValid()) {
-    Serial.println("Failed to get time from server.");
+    Log.println("Failed to get time from server.");
   }
 }
 
 void setup_wifi() {
   delay(10);
   // Connect to a WiFi network
-  Serial.println();
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
+  Log.println();
+  Log.print("Connecting to ");
+  Log.println(ssid);
  
   WiFi.begin(ssid, pass);
 
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    Serial.print(".");
+    Log.print(".");
   }
  
   randomSeed(micros());
  
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
+  Log.println("");
+  Log.println("WiFi connected");
+  Log.println("IP address: ");
+  Log.println(WiFi.localIP());
 
   setupDateTime();
 }
 
 void reconnect() {
-  // Loop until we're reconnected
-  while (!client.connected()) {
-    Serial.print("Attempting MQTT connection...");
-    // Create a random client ID
-    String clientId = "ESP8266Client-";
-    clientId += String(random(0xffff), HEX);
-    // Attempt to connect
-    if (client.connect(clientId.c_str(), mqtt_user, mqtt_pass)) {
-      Serial.println("connected");
-      // Once connected, publish an announcement...
-      client.publish("irrigation_msg", "Ambrogino just reconnected");
-      // ... and resubscribe
-      client.subscribe(mqtt_topic);
-    } else {
-      Serial.print("failed, rc=");
-      Serial.print(client.state());
-      Serial.println(" try again in 5 seconds");
-      // Wait 5 seconds before retrying
-      delay(5000);
-    }
+  // Single attempt per call; loop() will retry on the next iteration
+  if (client.connected()) return;
+
+  static long lastReconnectAttempt = 0;
+  long now = millis();
+  if (now - lastReconnectAttempt < 5000) return;
+  lastReconnectAttempt = now;
+
+  Log.print("Attempting MQTT connection...");
+  String clientId = "ESP8266Client-";
+  clientId += String(random(0xffff), HEX);
+  if (client.connect(clientId.c_str(), mqtt_user, mqtt_pass)) {
+    Log.println("connected");
+    client.publish("irrigation_msg", "Ambrogino just reconnected");
+    client.subscribe(mqtt_topic);
+  } else {
+    Log.print("failed, rc=");
+    Log.print(client.state());
+    Log.println(" try again in 5 seconds");
   }
 }
 
@@ -152,9 +199,23 @@ void setup(){
 
   //init mqtt
   setup_mqtt();
+
+  //init OTA
+  setup_ota();
+
+  //init log server (port 8266)
+  logServer.begin();
+  Log.println("Log server ready on port 8266");
 }
 
 void loop() {
+
+  ArduinoOTA.handle();
+
+  // Accept new log client if one is waiting
+  if (logServer.hasClient()) {
+    logClient = logServer.accept();
+  }
 
   if (!client.connected()) {
     reconnect();
@@ -166,9 +227,9 @@ void loop() {
     lastMsg = now;
     DateTime.getTime();
     char msg[128];
-    sprintf(msg, "Ambrogino is live / wifi: %s / ip: %s / ts: %s", ssid, WiFi.localIP().toString().c_str(), DateTime.toISOString().c_str());
-    Serial.print("Publish message: ");
-    Serial.println(msg);
+    sprintf(msg, "Ambrogino is live+ota / wifi: %s / ip: %s / topic: %s / ts: %s", ssid, WiFi.localIP().toString().c_str(), mqtt_topic, DateTime.toISOString().c_str());
+    Log.print("Publish message: ");
+    Log.println(msg);
     client.publish("irrigation_msg", msg);
   }
   

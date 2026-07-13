@@ -8,3 +8,6 @@ const char mqtt_user[] = "YOUR_MQTT_USER"; // your MQTT username
 const char mqtt_pass[] = "YOUR_MQTT_PASS"; // your MQTT password
 
 const char mqtt_topic[] = "YOUR_MQTT_TOPIC"; // your MQTT topic
+
+const char ota_hostname[] = "YOUR_OTA_HOSTNAME"; // OTA hostname (visible in Arduino IDE / avahi)
+const char ota_password[] = "YOUR_OTA_PASSWORD"; // OTA password
