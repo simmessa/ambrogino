@@ -4,3 +4,7 @@ const char ssid[] = "YOUR_SSID"; // your network SSID (name)
 const char pass[] = "YOUR_WIFI_PASSWORD";  // your network password
 
 const char mqtt_server[] = "YOUR_MQTT_SERVER_IP";
+const char mqtt_user[] = "YOUR_MQTT_USER"; // your MQTT username
+const char mqtt_pass[] = "YOUR_MQTT_PASS"; // your MQTT password
+
+const char mqtt_topic[] = "YOUR_MQTT_TOPIC"; // your MQTT topic

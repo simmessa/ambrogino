@@ -5,7 +5,7 @@
 #include <Arduino.h> //necessary for platformio
  
 #include <ESP8266WiFi.h>  //Wifi that won't cause issues with esp8266
-#include <PubSubClient.h> //Publisher subscriber
+#include <PubSubClient.h> //Publisher subscriber + mqtt client
 #include <ESPDateTime.h>  //For date
 
 #include <settings.h>
@@ -114,12 +114,12 @@ void reconnect() {
     String clientId = "ESP8266Client-";
     clientId += String(random(0xffff), HEX);
     // Attempt to connect
-    if (client.connect(clientId.c_str())) {
+    if (client.connect(clientId.c_str(), mqtt_user, mqtt_pass)) {
       Serial.println("connected");
       // Once connected, publish an announcement...
-      client.publish("irrigation_msg", "hello world");
+      client.publish("irrigation_msg", "Ambrogino just reconnected");
       // ... and resubscribe
-      client.subscribe("irrigation");
+      client.subscribe(mqtt_topic);
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
@@ -162,10 +162,11 @@ void loop() {
   client.loop();
  
   long now = millis();
-  if (now - lastMsg > 2000) { //will say it's alive every 2 sec
+  if (now - lastMsg > 5000) { //will say it's alive every 5 sec
     lastMsg = now;
     DateTime.getTime();
-    snprintf (msg, 50, "ambrogino is live / %s", DateTime.toISOString().c_str());
+    char msg[128];
+    sprintf(msg, "Ambrogino is live / wifi: %s / ip: %s / ts: %s", ssid, WiFi.localIP().toString().c_str(), DateTime.toISOString().c_str());
     Serial.print("Publish message: ");
     Serial.println(msg);
     client.publish("irrigation_msg", msg);
